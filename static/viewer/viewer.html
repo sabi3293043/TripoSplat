@@ -63,6 +63,7 @@ import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 
 const params = new URLSearchParams(location.search);
 const plyURL = params.get("ply");
+const source = params.get("source") || "tripo";
 
 const loadingEl = document.getElementById("loading");
 const loadLabel = document.getElementById("loading-label");
@@ -108,8 +109,13 @@ function init(url) {
   // front-facing side to +Z) and then flip 180° around X to put up on +Y.
   const splatRoot = new THREE.Group();
   splatRoot.add(splat);
-  splat.rotation.y = Math.PI / 2;    // yaw the model so its front faces the camera
-  splatRoot.rotation.x = Math.PI;    // flip Y/Z so it stands upright
+  if (source === "trellis") {
+    splat.rotation.y = 0;             // TRELLIS is already front-aligned
+    splatRoot.rotation.x = Math.PI;   // TRELLIS stores vertical downward
+  } else {
+    splat.rotation.y = Math.PI / 2;   // TripoSplat front axis
+    splatRoot.rotation.x = Math.PI;   // TripoSplat vertical axis
+  }
   scene.add(splatRoot);
 
   let framed = false;

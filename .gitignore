@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# TripoSplat local assets and generated outputs
+ckpts/
+gradio_outputs/
+cache/
+trellis_backend/
+triposplat.zip

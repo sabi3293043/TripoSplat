@@ -1,0 +1,48 @@
+name: Bug report
+description: Report an installation, generation, alignment, or viewer problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting a problem. Please remove private images and secrets.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Pinokio installation or launch
+        - Manual installation
+        - Single-image generation
+        - Multi-view alignment
+        - Output or viewer
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include the complete error and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Multi-view setup
+      description: Number of guided/free images, their approximate angles, order, sampling mode, detail influence, steps, and Gaussian count.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, GPU, VRAM, driver, Python, PyTorch, and CUDA versions.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this with MultiDiffusion mode.
+        - label: I tried the bundled Character example.
+        - label: I confirmed all views show the same unchanged object.

@@ -1,4 +1,30 @@
 # TripoSplat
+
+> [!IMPORTANT]
+> This fork adds **TripoSplat-native multi-view generation**. TripoSplat remains
+> the only generative model: every view conditions one shared TripoSplat latent,
+> and TripoSplat's own decoder produces the Gaussian splat. The implementation
+> adapts TRELLIS 1's tuning-free MultiDiffusion sampling pattern, but does not
+> load TRELLIS weights or use a TRELLIS decoder.
+
+### Multi-view additions
+
+- Any number of arbitrary-angle images.
+- Optional approximate Front-ish, Back-ish, Left-ish, and Right-ish slots.
+- Guided and free-angle images work together in one generation.
+- Separate learned TripoSplat camera state for every input view.
+- MultiDiffusion mode for consistency and stochastic mode for faster previews.
+- PLY and SPLAT export with an embedded browser viewer.
+- Bundled, attributed TRELLIS multi-image examples for immediate testing.
+
+Start with the [installation guide](docs/INSTALLATION.md), then read the
+[usage guide](docs/USAGE.md). The [architecture document](docs/ARCHITECTURE.md)
+explains exactly what was adapted from TRELLIS and what remains TripoSplat.
+Common failures and alignment advice are covered in
+[troubleshooting](docs/TROUBLESHOOTING.md).
+
+---
+
 TripoSplat converts a single 2D image into high-quality and variable number of 3D Gaussians, developed by [TripoAI](https://www.tripo3d.ai/). It can serve as a powerful pipeline tool for asset creation, AR/VR, game development, simulation environments, and beyond.
 
 <a href="https://arxiv.org/abs/2605.16355"><img src="https://img.shields.io/badge/Read%20Paper-B31B1B?style=for-the-badge&logo=arxiv" alt="Paper"></a>
@@ -11,7 +37,7 @@ TripoSplat converts a single 2D image into high-quality and variable number of 3
 
 ## Highlights
 - **High-quality, versatile generation** that handles a wide range of image styles.
-- **Arbitrary Gaussian count** (up to 262,144) — trade off visual quality against rendering cost according to your need.
+- **Arbitrary Gaussian count** (up to 262,144) â€” trade off visual quality against rendering cost according to your need.
 - **Minimal, readable code**: two files (`triposplat.py` and `model.py`), ~2,000 LOC total. Easy to customize and integrate into other ecosystems.
 - **Near-zero dependencies**: no `transformers`, no `diffusers`, no version-conflict hell. Runs on any platform.
 - **Official ComfyUI support**: drop the [official workflow template](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/3d_triposplat_image_to_gaussian_splat.json) into ComfyUI and start playing with TripoSplat right away.
@@ -47,7 +73,7 @@ python run_example.py
 ```
 
 The exported `.ply` / `.splat` files can be visualized in any 3D Gaussian
-viewer — e.g. [SparkJS](https://sparkjs.dev) or
+viewer â€” e.g. [SparkJS](https://sparkjs.dev) or
 [SuperSplat](https://superspl.at/editor).
 
 
