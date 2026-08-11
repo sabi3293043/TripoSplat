@@ -9,12 +9,14 @@ choose the output size, and generate.
 
 ### Free-angle multi-view
 
-Upload any number of images in any camera order. Uploaded images appear as an
-ordered thumbnail strip. Drag the file cards in the uploader to reorder them;
-the thumbnail strip always mirrors the exact order sent to TripoSplat. The first
-image establishes the early reference orientation when no guided view is used;
-it does not need to be a front view. Later in sampling, all images contribute
-missing surface detail.
+Upload any number of images in any camera order. Uploaded images appear on a
+sortable thumbnail board. Drag the thumbnail cards to reorder them. For devices
+or browsers where dragging is unavailable, choose a thumbnail in the selection
+list and use **Move first**, **Move earlier**, or **Move later**. The board is the
+canonical order sent to TripoSplat, so it no longer depends on the uploader's
+internal file order. The first image establishes the early reference orientation
+when no guided view is used; it does not need to be a front view. Later in
+sampling, all images contribute missing surface detail.
 
 For the most stable result:
 

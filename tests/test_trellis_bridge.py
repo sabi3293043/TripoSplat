@@ -19,14 +19,15 @@ class NativeTripoSplatProvenanceTests(unittest.TestCase):
         self.assertNotIn("import trellis", source)
         self.assertNotIn("from trellis", source)
 
-    def test_free_angle_uploader_has_reordering_and_thumbnail_order(self):
+    def test_free_angle_uploader_has_sortable_thumbnail_order(self):
         root = Path(__file__).parents[1]
         ui = (root / "run_gradio.py").read_text(encoding="utf-8")
-        self.assertIn("allow_reordering=True", ui)
-        self.assertIn("def free_upload_thumbnails", ui)
-        self.assertIn("free_order_out = gr.Gallery", ui)
-        self.assertIn("outputs=[free_order_out]", ui)
-        self.assertIn("free_in,\n            fusion_in", ui)
+        self.assertIn("def free_order_html", ui)
+        self.assertIn("draggable=\"true\"", ui)
+        self.assertIn("free_order_state = gr.State([])", ui)
+        self.assertIn("free_order_apply.click", ui)
+        self.assertIn("head=FREE_SORT_HEAD", ui)
+        self.assertIn("free_order_state,\n            fusion_in", ui)
 
 
 if __name__ == "__main__":
