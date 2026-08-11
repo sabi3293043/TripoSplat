@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import os
+import html
+import json
 import threading
 import time
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
 import gradio as gr
@@ -13,6 +15,14 @@ import torch
 
 from multiview import run_multi_image
 from triposplat import TripoSplatPipeline
+from ui_ordering import (
+    apply_index_order,
+    move_selected,
+    normalize_uploads,
+    selection_choices,
+    sync_upload_order,
+    upload_path,
+)
 
 
 PIPE = None
@@ -48,6 +58,148 @@ PLACEHOLDER_HTML = (
     "color:#94a3b8;font:16px system-ui;background:#111318;border-radius:12px'>"
     "3D viewer will appear here after generation</div>"
 )
+
+FREE_SORT_CSS = """
+#free-sorter .free-sort-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+  min-height: 90px;
+}
+#free-sorter .free-sort-card {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid var(--border-color-primary);
+  border-radius: 10px;
+  background: var(--background-fill-secondary);
+  cursor: grab;
+  user-select: none;
+  transition: border-color 120ms ease, opacity 120ms ease, transform 120ms ease;
+}
+#free-sorter .free-sort-card:hover { border-color: var(--color-accent); }
+#free-sorter .free-sort-card.free-dragging { opacity: 0.45; transform: scale(0.98); }
+#free-sorter .free-sort-card img {
+  display: block;
+  width: 100%;
+  height: 118px;
+  object-fit: contain;
+  pointer-events: none;
+  background: #111318;
+}
+#free-sorter .free-sort-caption {
+  padding: 7px 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+#free-sorter .free-sort-number {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 25px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: white;
+  background: rgba(0, 0, 0, 0.78);
+  font-weight: 700;
+  text-align: center;
+}
+#free-sorter .free-sort-empty {
+  display: flex;
+  min-height: 90px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border-color-primary);
+  border-radius: 10px;
+  color: var(--body-text-color-subdued);
+}
+"""
+
+FREE_SORT_JS = r"""() => {
+  const inputFor = (id) => {
+    const root = document.getElementById(id);
+    if (!root) return null;
+    if (root.matches("textarea,input")) return root;
+    return root.querySelector("textarea,input");
+  };
+  const buttonFor = (id) => {
+    const root = document.getElementById(id);
+    if (!root) return null;
+    if (root.matches("button")) return root;
+    return root.querySelector("button");
+  };
+  const setFrameworkValue = (input, value) => {
+    const proto = input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const commit = (list) => {
+    const indices = Array.from(list.querySelectorAll(".free-sort-card"))
+      .map((card) => Number(card.dataset.orderIndex));
+    const input = inputFor("free-order-json");
+    const button = buttonFor("free-order-apply");
+    if (!input || !button) return;
+    setFrameworkValue(input, JSON.stringify(indices));
+    window.setTimeout(() => button.click(), 40);
+  };
+  const bind = () => {
+    document.querySelectorAll("#free-sorter .free-sort-list").forEach((list) => {
+      if (list.dataset.sortBound === "1") return;
+      list.dataset.sortBound = "1";
+      let dragged = null;
+      list.addEventListener("dragstart", (event) => {
+        const card = event.target.closest(".free-sort-card");
+        if (!card) return;
+        dragged = card;
+        card.classList.add("free-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", card.dataset.orderIndex);
+      });
+      list.addEventListener("dragover", (event) => {
+        if (!dragged) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const target = event.target.closest(".free-sort-card");
+        if (!target || target === dragged) return;
+        const box = target.getBoundingClientRect();
+        const verticalMove = Math.abs(event.clientY - (box.top + box.height / 2)) > box.height / 4;
+        const after = verticalMove
+          ? event.clientY > box.top + box.height / 2
+          : event.clientX > box.left + box.width / 2;
+        list.insertBefore(dragged, after ? target.nextSibling : target);
+      });
+      list.addEventListener("drop", (event) => {
+        if (!dragged) return;
+        event.preventDefault();
+        dragged.classList.remove("free-dragging");
+        dragged = null;
+        commit(list);
+      });
+      list.addEventListener("dragend", () => {
+        if (dragged) dragged.classList.remove("free-dragging");
+        dragged = null;
+      });
+    });
+  };
+  bind();
+  new MutationObserver(bind).observe(document.body, { childList: true, subtree: true });
+} """
+
+FREE_SORT_HEAD = f"""<script>
+(() => {{
+  const installFreeSorter = {FREE_SORT_JS};
+  if (document.readyState === "loading") {{
+    document.addEventListener("DOMContentLoaded", installFreeSorter, {{ once: true }});
+  }} else {{
+    installFreeSorter();
+  }}
+}})();
+</script>"""
 
 
 def _gr_file(path: Path) -> str:
@@ -93,15 +245,6 @@ def _save_gaussian(gaussian, output_format: str):
     return _viewer_iframe(ply_path), str(download_path)
 
 
-def _upload_path(upload):
-    if isinstance(upload, (str, bytes, Path)) or hasattr(upload, "__fspath__"):
-        return os.fspath(upload)
-    for attribute in ("path", "name"):
-        value = getattr(upload, attribute, None)
-        if value:
-            return os.fspath(value)
-    return os.fspath(upload)
-
 
 def collect_multiview_entries(front, back, left, right, free_uploads):
     """Return guided views in cyclic order followed by arbitrary-angle views."""
@@ -112,34 +255,75 @@ def collect_multiview_entries(front, back, left, right, free_uploads):
         ("Left-ish", left),
     ]
     entries = [
-        (label, _upload_path(image), "guided")
+        (label, upload_path(image), "guided")
         for label, image in guided_candidates
         if image is not None
     ]
     entries.extend(
-        (f"Free angle {index + 1}", _upload_path(upload), "free")
+        (f"Free angle {index + 1}", upload_path(upload), "free")
         for index, upload in enumerate(list(free_uploads or []))
         if upload is not None
     )
     return entries
 
 
-def free_upload_thumbnails(free_uploads):
-    """Return thumbnail cards in the exact order used for generation."""
-    uploads = [
-        _upload_path(upload)
-        for upload in list(free_uploads or [])
-        if upload is not None
-    ]
-    return [
-        (
-            path,
-            "1 - Reference orientation when no guided view is used"
-            if index == 0
-            else f"{index + 1} - Detail view",
+def free_order_html(order):
+    """Render the canonical generation order as draggable image cards."""
+    paths = normalize_uploads(order)
+    if not paths:
+        return '<div class="free-sort-empty">Upload images to create the ordering board.</div>'
+    cards = []
+    for index, path in enumerate(paths):
+        url = f"/gradio_api/file={quote(Path(path).as_posix(), safe='/:')}"
+        name = html.escape(Path(path).name)
+        reference = " (reference)" if index == 0 else ""
+        cards.append(
+            '<div class="free-sort-card" draggable="true" '
+            f'data-order-index="{index}" title="Drag to reorder {name}">'
+            f'<span class="free-sort-number">{index + 1}</span>'
+            f'<img src="{html.escape(url, quote=True)}" alt="{name}">'
+            f'<div class="free-sort-caption">{name}{reference}</div></div>'
         )
-        for index, path in enumerate(uploads)
-    ]
+    return '<div class="free-sort-list" role="list">' + "".join(cards) + "</div>"
+
+
+def _order_choice_update(order, selected=None):
+    choices = selection_choices(order)
+    value = None if selected is None else str(selected)
+    return gr.update(choices=choices, value=value)
+
+
+def sync_free_uploads(current_order, known_uploads, free_uploads):
+    order, known = sync_upload_order(current_order, known_uploads, free_uploads)
+    status = (
+        f"{len(order)} image(s). Drag the thumbnail cards, or use the move buttons below."
+        if order
+        else "No free-angle images uploaded yet."
+    )
+    return order, known, free_order_html(order), _order_choice_update(order), "", status
+
+
+def apply_free_angle_order(current_order, order_json):
+    try:
+        indices = json.loads(order_json or "[]")
+        order = apply_index_order(current_order, indices)
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise gr.Error(str(error)) from error
+    return (
+        order,
+        free_order_html(order),
+        _order_choice_update(order),
+        "",
+        "Thumbnail order updated. This exact order will be sent to TripoSplat.",
+    )
+
+
+def move_free_angle_order(current_order, selected, action):
+    try:
+        order, new_index, status = move_selected(current_order, selected, action)
+    except (TypeError, ValueError) as error:
+        raise gr.Error(str(error)) from error
+    return order, free_order_html(order), _order_choice_update(order, new_index), "", status
 
 
 def _fusion_mode(label: str) -> str:
@@ -334,28 +518,40 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
                             )
                     gr.Markdown("### Upload and order free-angle images")
                     free_in = gr.File(
-                        label="Additional free-angle images - drag the file cards to reorder",
+                        label="Additional free-angle images",
                         file_count="multiple",
                         file_types=["image"],
                         type="filepath",
-                        allow_reordering=True,
                         height=220,
                     )
-                    free_order_out = gr.Gallery(
-                        label="Generation order (thumbnail 1 is the free-only reference)",
-                        columns=4,
-                        rows=2,
-                        height=240,
-                        object_fit="contain",
-                        allow_preview=True,
-                        buttons=[],
-                        interactive=False,
-                        type="filepath",
+                    free_order_state = gr.State([])
+                    free_known_uploads_state = gr.State([])
+                    free_order_out = gr.HTML(
+                        value=free_order_html([]),
+                        label="Generation order",
+                        elem_id="free-sorter",
+                    )
+                    free_order_select = gr.Dropdown(
+                        label="Select an image for the move buttons",
+                        choices=[],
+                        value=None,
+                        interactive=True,
+                    )
+                    with gr.Row():
+                        free_first_btn = gr.Button("Move first")
+                        free_earlier_btn = gr.Button("Move earlier")
+                        free_later_btn = gr.Button("Move later")
+                    free_order_status = gr.Markdown("No free-angle images uploaded yet.")
+                    free_order_json = gr.Textbox(
+                        value="", visible="hidden", elem_id="free-order-json"
+                    )
+                    free_order_apply = gr.Button(
+                        "Apply thumbnail order", visible="hidden", elem_id="free-order-apply"
                     )
                     gr.Markdown(
-                        "Drag the file cards in the uploader to change the generation order. "
-                        "The thumbnail strip mirrors that order. When no guided image is used, "
-                        "thumbnail 1 establishes the reference orientation."
+                        "Drag the **thumbnail cards** above to reorder them. If dragging is not "
+                        "available on your device, select an image and use the move buttons. "
+                        "Card 1 establishes the reference orientation when no guided image is used."
                     )
                     gr.Examples(
                         examples=[[files] for _label, files in MULTIVIEW_EXAMPLES],
@@ -436,10 +632,51 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
         outputs=common_outputs,
     )
     free_in.change(
-        fn=free_upload_thumbnails,
-        inputs=[free_in],
-        outputs=[free_order_out],
+        fn=sync_free_uploads,
+        inputs=[free_order_state, free_known_uploads_state, free_in],
+        outputs=[
+            free_order_state,
+            free_known_uploads_state,
+            free_order_out,
+            free_order_select,
+            free_order_json,
+            free_order_status,
+        ],
+        api_name="sync_free_angle_uploads",
     )
+    free_order_apply.click(
+        fn=apply_free_angle_order,
+        inputs=[free_order_state, free_order_json],
+        outputs=[
+            free_order_state,
+            free_order_out,
+            free_order_select,
+            free_order_json,
+            free_order_status,
+        ],
+        queue=False,
+        api_name="apply_free_angle_order",
+    )
+    for button, action in (
+        (free_first_btn, "first"),
+        (free_earlier_btn, "earlier"),
+        (free_later_btn, "later"),
+    ):
+        button.click(
+            fn=lambda order, selected, action=action: move_free_angle_order(
+                order, selected, action
+            ),
+            inputs=[free_order_state, free_order_select],
+            outputs=[
+                free_order_state,
+                free_order_out,
+                free_order_select,
+                free_order_json,
+                free_order_status,
+            ],
+            queue=False,
+            api_name=f"move_free_angle_{action}",
+        )
     multiview_btn.click(
         fn=generate_multiview,
         inputs=[
@@ -447,7 +684,7 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
             back_in,
             left_in,
             right_in,
-            free_in,
+            free_order_state,
             fusion_in,
             detail_influence_in,
             multi_seed_in,
@@ -465,6 +702,8 @@ if __name__ == "__main__":
     demo.queue(default_concurrency_limit=1).launch(
         server_name="0.0.0.0",
         server_port=7860,
+        css=FREE_SORT_CSS,
+        head=FREE_SORT_HEAD,
         allowed_paths=[
             str(VIEWER_HTML.parent),
             str(OUT_ROOT),
