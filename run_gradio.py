@@ -157,8 +157,8 @@ def generate_single(
         gaussian = pipe.decode_latent(output["latent"], num_gaussians=int(num_gaussians))
         viewer, download_path = _save_gaussian(gaussian, output_format)
         info = (
-            f"TripoSplat single image Â· {gaussian.get_xyz.shape[0]:,} gaussians Â· "
-            f"generation: {time.time() - started:.1f}s Â· saved: {Path(download_path).name}"
+            f"TripoSplat single image · {gaussian.get_xyz.shape[0]:,} gaussians · "
+            f"generation: {time.time() - started:.1f}s · saved: {Path(download_path).name}"
         )
         return (
             [(prepared, "Single image")],
@@ -236,9 +236,9 @@ def generate_multiview(
         if metadata["effective_steps"] != int(steps):
             step_note = " Steps were raised so every image is visited."
         info = (
-            f"TripoSplat native multi-view Â· {len(entries)} views ({mix}) Â· "
-            f"{metadata['method']} Â· {gaussian.get_xyz.shape[0]:,} gaussians Â· "
-            f"generation: {time.time() - started:.1f}s Â· saved: {Path(download_path).name}.{step_note} "
+            f"TripoSplat native multi-view · {len(entries)} views ({mix}) · "
+            f"{metadata['method']} · {gaussian.get_xyz.shape[0]:,} gaussians · "
+            f"generation: {time.time() - started:.1f}s · saved: {Path(download_path).name}.{step_note} "
             "TripoSplat generated and decoded this splat; no TRELLIS model weights were used."
         )
         gallery = [
@@ -323,7 +323,7 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
                     gr.Examples(
                         examples=[[files] for _label, files in MULTIVIEW_EXAMPLES],
                         inputs=[free_in],
-                        label="Multi-view test sets from the TRELLIS repository â€” click one to load all 3 images",
+                        label="Multi-view test sets from the TRELLIS repository — click one to load all 3 images",
                         example_labels=[label for label, _files in MULTIVIEW_EXAMPLES],
                         examples_per_page=7,
                         cache_examples=False,
@@ -331,7 +331,7 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
                     gr.Markdown(
                         "The test images are copied unchanged from "
                         "[Microsoft TRELLIS](https://github.com/microsoft/TRELLIS/tree/main/assets/example_multi_image) "
-                        "under its MIT license. Only the images and sampling idea are reusedâ€”not its model."
+                        "under its MIT license. Only the images and sampling idea are reused—not its model."
                     )
                     with gr.Accordion("TripoSplat multi-view settings", open=False):
                         fusion_in = gr.Radio(
