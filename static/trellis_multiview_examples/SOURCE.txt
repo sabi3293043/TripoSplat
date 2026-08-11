@@ -1,0 +1,9 @@
+Official TRELLIS multi-image examples
+
+Source: https://github.com/microsoft/TRELLIS/tree/main/assets/example_multi_image
+Repository revision: 442aa1e1afb9014e80681d3bf604e8d728a86ee7
+Example driver: https://github.com/microsoft/TRELLIS/blob/main/example_multi_image.py
+
+Files are copied unchanged. Each named set contains three RGBA PNG views and is
+loaded into TripoSplat's free-angle input so no unverified side label is imposed.
+See LICENSE-TRELLIS.txt in this directory for the repository's MIT license.
