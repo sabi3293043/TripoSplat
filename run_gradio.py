@@ -124,6 +124,24 @@ def collect_multiview_entries(front, back, left, right, free_uploads):
     return entries
 
 
+def free_upload_thumbnails(free_uploads):
+    """Return thumbnail cards in the exact order used for generation."""
+    uploads = [
+        _upload_path(upload)
+        for upload in list(free_uploads or [])
+        if upload is not None
+    ]
+    return [
+        (
+            path,
+            "1 - Reference orientation when no guided view is used"
+            if index == 0
+            else f"{index + 1} - Detail view",
+        )
+        for index, path in enumerate(uploads)
+    ]
+
+
 def _fusion_mode(label: str) -> str:
     return "multidiffusion" if str(label).startswith("MultiDiffusion") else "stochastic"
 
@@ -314,11 +332,30 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
                             right_in = gr.Image(
                                 label="Right-ish", type="filepath", image_mode="RGBA", height=190
                             )
+                    gr.Markdown("### Upload and order free-angle images")
                     free_in = gr.File(
-                        label="Additional free-angle images (any number; first image sets reference orientation)",
+                        label="Additional free-angle images - drag the file cards to reorder",
                         file_count="multiple",
                         file_types=["image"],
                         type="filepath",
+                        allow_reordering=True,
+                        height=220,
+                    )
+                    free_order_out = gr.Gallery(
+                        label="Generation order (thumbnail 1 is the free-only reference)",
+                        columns=4,
+                        rows=2,
+                        height=240,
+                        object_fit="contain",
+                        allow_preview=True,
+                        buttons=[],
+                        interactive=False,
+                        type="filepath",
+                    )
+                    gr.Markdown(
+                        "Drag the file cards in the uploader to change the generation order. "
+                        "The thumbnail strip mirrors that order. When no guided image is used, "
+                        "thumbnail 1 establishes the reference orientation."
                     )
                     gr.Examples(
                         examples=[[files] for _label, files in MULTIVIEW_EXAMPLES],
@@ -397,6 +434,11 @@ with gr.Blocks(title="TripoSplat Native Multi-view") as demo:
             single_fmt_in,
         ],
         outputs=common_outputs,
+    )
+    free_in.change(
+        fn=free_upload_thumbnails,
+        inputs=[free_in],
+        outputs=[free_order_out],
     )
     multiview_btn.click(
         fn=generate_multiview,
