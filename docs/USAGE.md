@@ -9,9 +9,12 @@ choose the output size, and generate.
 
 ### Free-angle multi-view
 
-Upload any number of images in any camera order. The first image establishes the
-early reference orientation; it does not need to be a front view. Later in
-sampling, all images contribute missing surface detail.
+Upload any number of images in any camera order. Uploaded images appear as an
+ordered thumbnail strip. Drag the file cards in the uploader to reorder them;
+the thumbnail strip always mirrors the exact order sent to TripoSplat. The first
+image establishes the early reference orientation when no guided view is used;
+it does not need to be a front view. Later in sampling, all images contribute
+missing surface detail.
 
 For the most stable result:
 
